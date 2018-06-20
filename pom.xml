@@ -52,11 +52,11 @@
         </dependency>
         <!-- When the AxonHub dependency is commented out, we'll
             run as with local busses (monolith) -->
-        <!--<dependency>-->
-            <!--<groupId>io.axoniq</groupId>-->
-            <!--<artifactId>axonhub-spring-boot-autoconfigure</artifactId>-->
-            <!--<version>${axonhub.version}</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>io.axoniq</groupId>
+            <artifactId>axonhub-spring-boot-autoconfigure</artifactId>
+            <version>${axonhub.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.vaadin</groupId>
             <artifactId>vaadin-spring-boot-starter</artifactId>

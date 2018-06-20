@@ -3,14 +3,20 @@ package com.nklmish.demo
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.nklmish.demo.process.WithdrawalApprovalSaga
+import io.axoniq.axonhub.client.AxonHubConfiguration
+import io.axoniq.axonhub.client.PlatformConnectionManager
+import io.axoniq.axonhub.client.event.axon.AxonHubEventStore
 import org.axonframework.common.transaction.TransactionManager
 import org.axonframework.config.EventHandlingConfiguration
 import org.axonframework.config.SagaConfiguration
 import org.axonframework.eventhandling.EventBus
 import org.axonframework.eventhandling.scheduling.EventScheduler
 import org.axonframework.eventhandling.scheduling.java.SimpleEventScheduler
+import org.axonframework.eventsourcing.eventstore.EventStore
+import org.axonframework.serialization.Serializer
 import org.axonframework.serialization.json.JacksonSerializer
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.CommandLineRunner
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -48,6 +54,13 @@ class AxonCasinoApplication {
         val objectMapper = ObjectMapper()
         objectMapper.registerModule(KotlinModule())
         return JacksonSerializer(objectMapper)
+    }
+
+    @Bean
+    fun eventStore(axonHubConfiguration: AxonHubConfiguration,
+                   platformConnectionManager: PlatformConnectionManager,
+                   @Qualifier("eventSerializer") serializer: Serializer): EventStore {
+        return AxonHubEventStore(axonHubConfiguration, platformConnectionManager, serializer)
     }
 
 }
