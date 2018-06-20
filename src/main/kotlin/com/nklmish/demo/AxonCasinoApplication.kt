@@ -1,5 +1,7 @@
 package com.nklmish.demo
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.nklmish.demo.process.WithdrawalApprovalSaga
 import org.axonframework.config.EventHandlingConfiguration
 import org.axonframework.config.SagaConfiguration
@@ -41,7 +43,11 @@ class AxonCasinoApplication {
     }
 
     @Bean
-    fun eventSerializer() = JacksonSerializer()
+    fun eventSerializer(): JacksonSerializer {
+        val objectMapper = ObjectMapper()
+        objectMapper.registerModule(KotlinModule())
+        return JacksonSerializer(objectMapper)
+    }
 
 }
 
