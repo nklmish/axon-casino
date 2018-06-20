@@ -3,6 +3,7 @@ package com.nklmish.demo
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.nklmish.demo.process.WithdrawalApprovalSaga
+import org.axonframework.common.transaction.TransactionManager
 import org.axonframework.config.EventHandlingConfiguration
 import org.axonframework.config.SagaConfiguration
 import org.axonframework.eventhandling.EventBus
@@ -38,8 +39,8 @@ class AxonCasinoApplication {
 
     @Bean
     @Profile("process", "game")
-    fun eventScheduler(eventBus: EventBus): EventScheduler {
-        return SimpleEventScheduler(Executors.newSingleThreadScheduledExecutor(), eventBus)
+    fun eventScheduler(eventBus: EventBus, transactionManager: TransactionManager): EventScheduler {
+        return SimpleEventScheduler(Executors.newSingleThreadScheduledExecutor(), eventBus, transactionManager)
     }
 
     @Bean
