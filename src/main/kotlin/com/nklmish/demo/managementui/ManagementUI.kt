@@ -1,6 +1,8 @@
 package com.nklmish.demo.managementui
 
 import com.nklmish.demo.managementdata.TotalDeposited
+import com.nklmish.demo.managementdata.TotalDepositedQuery
+import com.nklmish.demo.managementdata.TotalDepositedSample
 import com.nklmish.demo.walletsummary.*
 import com.vaadin.addon.charts.Chart
 import com.vaadin.addon.charts.model.*
@@ -21,19 +23,22 @@ import org.axonframework.queryhandling.responsetypes.ResponseTypes
 import org.springframework.context.annotation.Profile
 import java.math.BigDecimal
 import java.util.*
+import javax.xml.crypto.Data
 
 @SpringUI(path = "/management")
 @Widgetset("AppWidgetset")
 @Theme("mytheme")
 @Push
 @Profile("gui")
-class ManagementUI(private val managementDataCollector: ManagementDataCollector, private val queryGateway: QueryGateway) : UI(), ManagementEventListener {
+class ManagementUI(private val queryGateway: QueryGateway) : UI() {
     private val allSeries: MutableMap<String, DataSeries>
     private val availableSeries = ListSeries("Available")
     private val bettedSeries = ListSeries("Betted")
     private val withdrawingSeries = ListSeries("Withdrawing")
     private var topWalletsChart: Chart? = null
+    private var totalDepositedCharts: List<Chart>? = null
     private var topQueryResult: SubscriptionQueryResult<List<TopWalletSummary>, TopWalletsChange>? = null
+    private var totalQueryResult: SubscriptionQueryResult<List<TotalDepositedSample>, TotalDepositedSample>? = null
 
     init {
         allSeries = HashMap()
@@ -46,11 +51,11 @@ class ManagementUI(private val managementDataCollector: ManagementDataCollector,
             series.name = "$currency deposits"
             allSeries[currency] = series
         }
-        managementDataCollector.register(this)
 
         val totalsColumn = VerticalLayout()
         totalsColumn.setSizeFull()
-        for (chart in totalDepositedCharts()) totalsColumn.addComponent(chart)
+        this.totalDepositedCharts = totalDepositedCharts()
+        for (chart in this.totalDepositedCharts!!) totalsColumn.addComponent(chart)
 
         val walletsColumn = VerticalLayout()
         walletsColumn.setSizeFull()
@@ -64,22 +69,41 @@ class ManagementUI(private val managementDataCollector: ManagementDataCollector,
 
         content = splitPanel
 
+        initTotalData()
         initTopWalletData()
     }
 
     override fun close() {
-        managementDataCollector.unregister(this)
         topQueryResult?.cancel()
+        totalQueryResult?.cancel()
         super.close()
     }
 
-    override fun updateTotals(now: Long, totals: List<TotalDeposited>) {
+    private fun initTotalData() {
+        val queryResult = queryGateway.subscriptionQuery(TotalDepositedQuery(),
+                ResponseTypes.multipleInstancesOf(TotalDepositedSample::class.java),
+                ResponseTypes.instanceOf(TotalDepositedSample::class.java))
+        totalQueryResult = queryResult
+        queryResult.initialResult().subscribe(::processInitialTotalData)
+        queryResult.updates().subscribe(::processUpdateTotalData)
+    }
+
+    private fun processInitialTotalData(samples: List<TotalDepositedSample>) {
         access {
-            for ((currency, amount) in totals) {
-                val series = allSeries[currency]
-                val shift = series!!.size() > 20
-                series.add(DataSeriesItem(now, amount), true, shift)
+            for(sample in samples) {
+                allSeries["EUR"]!!.add(DataSeriesItem(sample.timestamp, sample.totalEUR), false, false)
+                allSeries["USD"]!!.add(DataSeriesItem(sample.timestamp, sample.totalUSD), false, false)
             }
+            for (chart in this.totalDepositedCharts!!) {
+                chart.drawChart()
+            }
+        }
+    }
+
+    private fun processUpdateTotalData(sample: TotalDepositedSample) {
+        access {
+            allSeries["EUR"]!!.add(DataSeriesItem(sample.timestamp, sample.totalEUR), true, true)
+            allSeries["USD"]!!.add(DataSeriesItem(sample.timestamp, sample.totalUSD), true, true)
         }
     }
 
