@@ -26,7 +26,6 @@
         <axon.version>3.3.1</axon.version>
         <axonhub.version>1.1</axonhub.version>
         <vaadin.version>8.4.5</vaadin.version>
-        <vaadin.plugin.version>8.4.5</vaadin.plugin.version>
 		<vaadin.charts.version>4.0.5</vaadin.charts.version>
 		<vaadin.widgetset.mode>local</vaadin.widgetset.mode>
         <docker.image.prefix>eu.gcr.io/casino-demo</docker.image.prefix>
@@ -112,7 +111,6 @@
 
     <build>
         <sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
-        <testSourceDirectory>${project.basedir}/src/test/kotlin</testSourceDirectory>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -148,7 +146,7 @@
             <plugin>
                 <groupId>com.vaadin</groupId>
                 <artifactId>vaadin-maven-plugin</artifactId>
-                <version>${vaadin.plugin.version}</version>
+                <version>${vaadin.version}</version>
                 <executions>
                     <execution>
                         <goals>
