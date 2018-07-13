@@ -1,15 +1,19 @@
 package com.nklmish.demo
 
+import com.fasterxml.jackson.databind.Module
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.nklmish.demo.process.WithdrawalApprovalSaga
+import com.thoughtworks.xstream.XStream
 import org.axonframework.common.transaction.TransactionManager
-import org.axonframework.config.EventHandlingConfiguration
+import org.axonframework.config.EventProcessingConfiguration
 import org.axonframework.config.SagaConfiguration
 import org.axonframework.eventhandling.EventBus
 import org.axonframework.eventhandling.scheduling.EventScheduler
 import org.axonframework.eventhandling.scheduling.java.SimpleEventScheduler
+import org.axonframework.serialization.Serializer
 import org.axonframework.serialization.json.JacksonSerializer
+import org.axonframework.serialization.xml.XStreamSerializer
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -24,8 +28,8 @@ import java.util.concurrent.Executors
 class AxonCasinoApplication {
 
     @Autowired
-    fun config(eventHandlingConfiguration: EventHandlingConfiguration) {
-        eventHandlingConfiguration.usingTrackingProcessors()
+    fun config(eventProcessingConfiguration: EventProcessingConfiguration) {
+        eventProcessingConfiguration.usingTrackingProcessors()
     }
 
     @Bean
@@ -41,10 +45,22 @@ class AxonCasinoApplication {
     }
 
     @Bean
-    fun eventSerializer(): JacksonSerializer {
-        val objectMapper = ObjectMapper()
-        objectMapper.registerModule(KotlinModule())
+    fun eventSerializer(objectMapper: ObjectMapper): JacksonSerializer {
         return JacksonSerializer(objectMapper)
+    }
+
+    @Bean
+    fun kotlinModule(): Module {
+        return KotlinModule()
+    }
+
+    @Autowired
+    fun configure(serializer: Serializer) {
+        if (serializer is XStreamSerializer) {
+            val xStream = serializer.xStream
+            XStream.setupDefaultSecurity(xStream)
+            xStream.allowTypesByWildcard(arrayOf("org.axonframework.**", "com.nklmish.demo.**"))
+        }
     }
 
 }

@@ -5,7 +5,6 @@ import javax.persistence.Entity
 import javax.persistence.Id
 
 data class SingleWalletSummaryQuery(val walletId: String)
-class AllWalletSummaryQuery
 
 @Entity
 data class WalletSummary(
@@ -16,8 +15,22 @@ data class WalletSummary(
         var withdrawing: BigDecimal? = null
 )
 
-/* Technical events to push changes to the UI. Will become obsolete as soon
-   as SubscriptionQueries arrive in Axon Framework. */
-data class WalletSummaryCreatedEvt(val walletSummary: WalletSummary)
+data class WalletSummaryUpdate(val walletSummary: WalletSummary, val event: Any?)
 
-data class WalletSummaryUpdatedEvt(val walletSummary: WalletSummary)
+
+
+
+
+class TopWalletSummaryQuery()
+
+data class TopWalletSummary(
+        val walletId: String,
+        val available: BigDecimal,
+        val betted: BigDecimal,
+        val withdrawing: BigDecimal,
+        val total: BigDecimal
+)
+
+interface TopWalletsChange
+data class TopWalletsMemberChange(val summaries: List<TopWalletSummary>) : TopWalletsChange
+data class TopWalletsValueChange(val position: Int, val summary: TopWalletSummary) : TopWalletsChange

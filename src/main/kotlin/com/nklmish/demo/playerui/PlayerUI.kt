@@ -3,8 +3,7 @@ package com.nklmish.demo.playerui
 import com.nklmish.demo.wallet.*
 import com.nklmish.demo.walletsummary.SingleWalletSummaryQuery
 import com.nklmish.demo.walletsummary.WalletSummary
-import com.nklmish.demo.walletsummary.WalletSummaryCreatedEvt
-import com.nklmish.demo.walletsummary.WalletSummaryUpdatedEvt
+import com.nklmish.demo.walletsummary.WalletSummaryUpdate
 import com.vaadin.addon.charts.Chart
 import com.vaadin.addon.charts.model.*
 import com.vaadin.addon.charts.model.style.SolidColor
@@ -18,7 +17,9 @@ import com.vaadin.server.VaadinRequest
 import com.vaadin.spring.annotation.SpringUI
 import com.vaadin.ui.*
 import org.axonframework.commandhandling.gateway.CommandGateway
+import org.axonframework.commandhandling.model.ConcurrencyException
 import org.axonframework.queryhandling.QueryGateway
+import org.axonframework.queryhandling.SubscriptionQueryResult
 import org.axonframework.queryhandling.responsetypes.ResponseTypes
 import org.springframework.context.annotation.Profile
 import java.math.BigDecimal
@@ -29,7 +30,7 @@ import java.util.*
 @Theme("mytheme")
 @Push
 @Profile("gui")
-class PlayerUI(private val commandGateway: CommandGateway, private val queryGateway: QueryGateway, private val playerEventDistributor: PlayerEventDistributor) : UI(), PlayerEventListener {
+class PlayerUI(private val commandGateway: CommandGateway, private val queryGateway: QueryGateway) : UI() {
     @Volatile
     private var newWalletId: String? = null
     @Volatile
@@ -43,71 +44,60 @@ class PlayerUI(private val commandGateway: CommandGateway, private val queryGate
     private val bets = ArrayList<BetData>()
     private val betsDataProvider = ListDataProvider(bets)
 
-    override fun on(evt: WalletSummaryCreatedEvt) {
-        if (newWalletId != null && newWalletId == evt.walletSummary.walletId) {
-            activeWalletId = evt.walletSummary.walletId
-            activeWalletCurrency = evt.walletSummary.currency
-            availableSeries.updatePoint(0, evt.walletSummary.available)
-            bettedSeries.updatePoint(0, evt.walletSummary.betted)
-            withdrawingSeries.updatePoint(0, evt.walletSummary.withdrawing)
+    private var walletSummaryQueryResult: SubscriptionQueryResult<WalletSummary, WalletSummaryUpdate>? = null
+
+    private fun updateWalletSummary(walletSummaryUpdate: WalletSummaryUpdate) {
+        val walletSummary = walletSummaryUpdate.walletSummary
+        val event = walletSummaryUpdate.event
+        if(activeWalletId == null) {
+            activeWalletId = walletSummary.walletId
+            activeWalletCurrency = walletSummary.currency
+            availableSeries.updatePoint(0, walletSummary.available)
+            bettedSeries.updatePoint(0, walletSummary.betted)
+            withdrawingSeries.updatePoint(0, walletSummary.withdrawing)
             access { setContent() }
-        }
-    }
-
-    override fun on(evt: WalletSummaryUpdatedEvt) {
-        access {
-            availableSeries.updatePoint(0, evt.walletSummary.available)
-            bettedSeries.updatePoint(0, evt.walletSummary.betted)
-            withdrawingSeries.updatePoint(0, evt.walletSummary.withdrawing)
-        }
-    }
-
-    override fun on(evt: WithdrawalApprovedEvent) {
-        access {
-            if (currentNotification != null) currentNotification!!.close()
-            currentNotification = Notification.show("Withdrawal approved.", Notification.Type.WARNING_MESSAGE)
-        }
-    }
-
-    override fun on(evt: WithdrawalDeniedEvent) {
-        access {
-            if (currentNotification != null) currentNotification!!.close()
-            currentNotification = Notification.show("Withdrawal denied.", Notification.Type.ERROR_MESSAGE)
-        }
-    }
-
-    override fun on(evt: BetPlacedEvent) {
-        access {
-            bets.add(0, BetData(evt.betId, evt.amount, null))
-            betsDataProvider.refreshAll()
-        }
-    }
-
-    override fun on(evt: BetWonEvent) {
-        access {
-            if (currentNotification != null) currentNotification!!.close()
-            currentNotification = Notification.show("Bet won!", Notification.Type.WARNING_MESSAGE)
-            for (bet in bets) {
-                if (bet.betId == evt.betId && bet.amountWon == null) {
-                    bet.amountWon = evt.amountPayout
-                    break
+        } else {
+            access {
+                availableSeries.updatePoint(0, walletSummary.available)
+                bettedSeries.updatePoint(0, walletSummary.betted)
+                withdrawingSeries.updatePoint(0, walletSummary.withdrawing)
+                when(event) {
+                    is WithdrawalApprovedEvent -> {
+                        currentNotification?.close()
+                        currentNotification = Notification.show("Withdrawal approved.", Notification.Type.WARNING_MESSAGE)
+                    }
+                    is WithdrawalDeniedEvent -> {
+                        currentNotification?.close()
+                        currentNotification = Notification.show("Withdrawal denied.", Notification.Type.ERROR_MESSAGE)
+                    }
+                    is BetPlacedEvent -> {
+                        bets.add(0, BetData(event.betId, event.amount, null))
+                        betsDataProvider.refreshAll()
+                    }
+                    is BetWonEvent -> {
+                        currentNotification?.close()
+                        currentNotification = Notification.show("Bet won!", Notification.Type.WARNING_MESSAGE)
+                        for (bet in bets) {
+                            if (bet.betId == event.betId && bet.amountWon == null) {
+                                bet.amountWon = event.amountPayout
+                                break
+                            }
+                        }
+                        betsDataProvider.refreshAll()
+                    }
+                    is BetLostEvent -> {
+                        currentNotification?.close()
+                        currentNotification = Notification.show("Bet lost.", Notification.Type.WARNING_MESSAGE)
+                        for (bet in bets) {
+                            if (bet.betId == event.betId && bet.amountWon == null) {
+                                bet.amountWon = BigDecimal.ZERO
+                                break
+                            }
+                        }
+                        betsDataProvider.refreshAll()
+                    }
                 }
             }
-            betsDataProvider.refreshAll()
-        }
-    }
-
-    override fun on(evt: BetLostEvent) {
-        access {
-            if (currentNotification != null) currentNotification!!.close()
-            currentNotification = Notification.show("Bet lost.", Notification.Type.WARNING_MESSAGE)
-            for (bet in bets) {
-                if (bet.betId == evt.betId && bet.amountWon == null) {
-                    bet.amountWon = BigDecimal.ZERO
-                    break
-                }
-            }
-            betsDataProvider.refreshAll()
         }
     }
 
@@ -120,11 +110,10 @@ class PlayerUI(private val commandGateway: CommandGateway, private val queryGate
             }
         }
         setContent()
-        playerEventDistributor.register(this)
     }
 
     override fun close() {
-        playerEventDistributor.unregister(this)
+        walletSummaryQueryResult?.cancel()
         super.close()
     }
 
@@ -175,7 +164,20 @@ class PlayerUI(private val commandGateway: CommandGateway, private val queryGate
                     newWalletId!!,
                     currency.value
             )
-            commandGateway.sendAndWait<Any>(cmd)
+            val queryResult = queryGateway.subscriptionQuery(SingleWalletSummaryQuery(cmd.walletId),
+                    ResponseTypes.instanceOf(WalletSummary::class.java),
+                    ResponseTypes.instanceOf(WalletSummaryUpdate::class.java))
+            try {
+                commandGateway.sendAndWait<Any>(cmd)
+                queryResult.updates().subscribe(::updateWalletSummary)
+                walletSummaryQueryResult = queryResult
+            } catch (e: ConcurrencyException) {
+                queryResult.cancel()
+                throw RuntimeException("A wallet with this id already exists.")
+            } catch (e: Exception) {
+                queryResult.cancel()
+                throw e
+            }
         }
 
         val form = FormLayout()
@@ -193,20 +195,18 @@ class PlayerUI(private val commandGateway: CommandGateway, private val queryGate
 
         submit.addClickListener { _ ->
             val walletId = id.value
-            queryGateway
-                    .query(SingleWalletSummaryQuery(walletId), ResponseTypes.instanceOf(WalletSummary::class.java))
-                    .whenComplete { walletSummary, throwable ->
-                        if (walletSummary != null) {
-                            activeWalletId = walletSummary.walletId
-                            activeWalletCurrency = walletSummary.currency
-                            availableSeries.updatePoint(0, walletSummary.available)
-                            bettedSeries.updatePoint(0, walletSummary.betted)
-                            withdrawingSeries.updatePoint(0, walletSummary.withdrawing)
-                            access { setContent() }
-                        } else if (throwable != null) {
-                            access { Notification.show("Unable to find wallet $walletId", Notification.Type.ERROR_MESSAGE) }
-                        }
-                    }
+            val queryResult = queryGateway.subscriptionQuery(SingleWalletSummaryQuery(walletId),
+                    ResponseTypes.instanceOf(WalletSummary::class.java),
+                    ResponseTypes.instanceOf(WalletSummaryUpdate::class.java))
+            try {
+                val summary = queryResult.initialResult().block()
+                walletSummaryQueryResult = queryResult
+                updateWalletSummary(WalletSummaryUpdate(summary!!, null))
+                queryResult.updates().subscribe(::updateWalletSummary)
+            } catch(e: NullPointerException) {
+                queryResult.cancel()
+                access { Notification.show("Unable to find wallet $walletId", Notification.Type.ERROR_MESSAGE) }
+            }
         }
 
         val form = FormLayout()
