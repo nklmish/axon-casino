@@ -29,7 +29,6 @@
 		<vaadin.charts.version>4.0.5</vaadin.charts.version>
 		<vaadin.widgetset.mode>local</vaadin.widgetset.mode>
         <docker.image.prefix>eu.gcr.io/casino-demo</docker.image.prefix>
-        <jackson-datatype-jsr310.version>2.9.6</jackson-datatype-jsr310.version>
         <dockerfile.plugin.version>1.4.3</dockerfile.plugin.version>
     </properties>
 
@@ -44,6 +43,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-quartz</artifactId>
         </dependency>
         <dependency>
             <groupId>org.axonframework</groupId>
@@ -91,11 +94,14 @@
         <dependency>
             <groupId>com.fasterxml.jackson.module</groupId>
             <artifactId>jackson-module-kotlin</artifactId>
-            <version>${jackson-datatype-jsr310.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
             <scope>runtime</scope>
         </dependency>
     </dependencies>
