@@ -80,6 +80,7 @@ class WithdrawalApprovalSaga {
 
 }
 
+@Component
 class Dummy {
     @CommandHandler
     private fun on(cmd: DummyWithdrawalCommand) {

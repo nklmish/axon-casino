@@ -62,8 +62,6 @@
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-core</artifactId>
         </dependency>
-        <!-- When the AxonHub dependency is commented out, we'll
-            run as with local busses (monolith) -->
         <dependency>
             <groupId>io.axoniq</groupId>
             <artifactId>axonhub-spring-boot-autoconfigure</artifactId>
@@ -102,6 +100,11 @@
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
     </dependencies>
