@@ -15,7 +15,6 @@ import org.axonframework.config.EventProcessingConfiguration
 import org.axonframework.config.SagaConfiguration
 import org.axonframework.eventhandling.EventBus
 import org.axonframework.eventhandling.scheduling.EventScheduler
-import org.axonframework.eventhandling.scheduling.java.SimpleEventScheduler
 import org.axonframework.eventhandling.scheduling.quartz.EventJobDataBinder
 import org.axonframework.eventhandling.scheduling.quartz.QuartzEventScheduler
 import org.axonframework.queryhandling.QueryGateway
@@ -30,7 +29,6 @@ import org.quartz.Scheduler
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
-import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.autoconfigure.quartz.SchedulerFactoryBeanCustomizer
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.boot.runApplication
@@ -39,15 +37,12 @@ import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
 import org.springframework.context.event.EventListener
-import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.quartz.SchedulerFactoryBean
 import org.springframework.stereotype.Component
-import java.util.concurrent.Executors
 
 
 @Configuration
 @ComponentScan
-@EnableScheduling
 class AxonCasinoApplication {
 
     @Autowired

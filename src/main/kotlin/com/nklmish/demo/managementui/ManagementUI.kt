@@ -184,7 +184,7 @@ class ManagementUI(private val queryGateway: QueryGateway) : UI() {
 
         val conf = chart.configuration
 
-        conf.setTitle("Top Wallets")
+        conf.setTitle("Top 5 Wallets")
 
         val x = XAxis()
         x.setCategories()

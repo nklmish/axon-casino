@@ -6,17 +6,21 @@ import com.nklmish.demo.wallet.BetLostEvent
 import com.nklmish.demo.wallet.BetWonEvent
 import com.nklmish.demo.wallet.DepositedEvent
 import com.nklmish.demo.wallet.WithdrawalApprovedEvent
-import com.nklmish.demo.walletsummary.TopWalletSummaryHolder
 import org.axonframework.eventhandling.EventHandler
 import org.axonframework.queryhandling.QueryHandler
 import org.axonframework.queryhandling.QueryUpdateEmitter
+import org.quartz.*
+import org.quartz.SimpleScheduleBuilder.simpleSchedule
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
-import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.time.Instant
 import javax.persistence.EntityManager
+
 
 @Component
 @Profile("query")
@@ -31,6 +35,11 @@ class TotalDepositedProjection(val entityManager: EntityManager, val objectMappe
             entityManager.persist(totalDeposited)
         }
         return totalDeposited
+    }
+
+    @Autowired
+    fun schedule(scheduler: Scheduler) {
+
     }
 
     @EventHandler
@@ -57,7 +66,6 @@ class TotalDepositedProjection(val entityManager: EntityManager, val objectMappe
         totalDeposited.amount = totalDeposited.amount!! - evt.amount
     }
 
-    @Scheduled(fixedRate = 1000)
     @Transactional
     fun sample() {
         val holder = samplesholder()
@@ -90,3 +98,37 @@ class TotalDepositedProjection(val entityManager: EntityManager, val objectMappe
         return objectMapper.readValue(samplesholder().json!!)
     }
 }
+
+@Component
+class SampleJob : Job {
+
+    @Autowired
+    private lateinit var totalDepositedProjection: TotalDepositedProjection
+
+    override fun execute(context: JobExecutionContext?) {
+        totalDepositedProjection.sample()
+    }
+
+}
+
+@Configuration
+class QuartzConfig {
+
+    @Bean
+    fun sampleJobDetail(): JobDetail {
+        return JobBuilder.newJob().ofType(SampleJob::class.java)
+                .storeDurably()
+                .withIdentity("SAMPLING_JOB")
+                .build()
+    }
+
+    @Bean
+    fun sampleTrigger() : Trigger {
+        return TriggerBuilder.newTrigger().forJob("SAMPLING_JOB")
+                .withIdentity("SAMPLING_TRIGGER")
+                .withSchedule(simpleSchedule().repeatForever().withIntervalInSeconds(1))
+                .build()
+    }
+
+}
+
