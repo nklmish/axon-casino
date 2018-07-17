@@ -1,0 +1,321 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: axon-casino
+spec:
+  loadBalancerIP: 35.195.194.19
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: ac-gui
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  type: LoadBalancer  
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ac-gui
+  labels:
+    app: ac-gui
+spec:
+  template:
+    metadata:
+      labels:
+        app: ac-gui
+    spec:
+      containers:
+        - name: app
+          image: eu.gcr.io/casino-demo/axon-casino:latest
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 8080
+            protocol: TCP 
+            name: web
+          resources:
+            limits:
+              memory: 512Mi          
+          env:
+            - name: spring.profiles.active
+              value: gui,axonhub
+            - name: axoniq.axonhub.servers
+              value: axonhub.default.svc.cluster.local
+            - name: spring.datasource.url
+              value: jdbc:mysql://localhost/axoncasino
+            - name: spring.datasource.username
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: spring.datasource.password
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+        - name: cloudsql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.11
+          command: ["/cloud_sql_proxy",
+                    "-instances=casino-demo:europe-west1:casino-demo=tcp:3306",
+                    "-credential_file=/secrets/cloudsql/credentials.json"]
+          volumeMounts:
+            - name: cloudsql-instance-credentials
+              mountPath: /secrets/cloudsql
+              readOnly: true
+      volumes:
+        - name: cloudsql-instance-credentials
+          secret:
+            secretName: cloudsql-instance-credentials
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ac-query
+  labels:
+    app: ac-query
+spec:
+  template:
+    metadata:
+      labels:
+        app: ac-query
+    spec:
+      containers:
+        - name: app
+          image: eu.gcr.io/casino-demo/axon-casino:latest
+          imagePullPolicy: Always
+          resources:
+            limits:
+              memory: 512Mi          
+          env:
+            - name: spring.profiles.active
+              value: query,axonhub
+            - name: axoniq.axonhub.servers
+              value: axonhub.default.svc.cluster.local
+            - name: spring.datasource.url
+              value: jdbc:mysql://localhost/axoncasino
+            - name: spring.datasource.username
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: spring.datasource.password
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+        - name: cloudsql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.11
+          command: ["/cloud_sql_proxy",
+                    "-instances=casino-demo:europe-west1:casino-demo=tcp:3306",
+                    "-credential_file=/secrets/cloudsql/credentials.json"]
+          volumeMounts:
+            - name: cloudsql-instance-credentials
+              mountPath: /secrets/cloudsql
+              readOnly: true
+      volumes:
+        - name: cloudsql-instance-credentials
+          secret:
+            secretName: cloudsql-instance-credentials
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ac-kyp
+  labels:
+    app: ac-kyp
+spec:
+  template:
+    metadata:
+      labels:
+        app: ac-kyp
+    spec:
+      containers:
+        - name: app
+          image: eu.gcr.io/casino-demo/axon-casino:latest
+          imagePullPolicy: Always
+          resources:
+            limits:
+              memory: 512Mi          
+          env:
+            - name: spring.profiles.active
+              value: kyp,axonhub
+            - name: axoniq.axonhub.servers
+              value: axonhub.default.svc.cluster.local
+            - name: spring.datasource.url
+              value: jdbc:mysql://localhost/axoncasino
+            - name: spring.datasource.username
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: spring.datasource.password
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+        - name: cloudsql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.11
+          command: ["/cloud_sql_proxy",
+                    "-instances=casino-demo:europe-west1:casino-demo=tcp:3306",
+                    "-credential_file=/secrets/cloudsql/credentials.json"]
+          volumeMounts:
+            - name: cloudsql-instance-credentials
+              mountPath: /secrets/cloudsql
+              readOnly: true
+      volumes:
+        - name: cloudsql-instance-credentials
+          secret:
+            secretName: cloudsql-instance-credentials
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ac-game
+  labels:
+    app: ac-game
+spec:
+  template:
+    metadata:
+      labels:
+        app: ac-game
+    spec:
+      containers:
+        - name: app
+          image: eu.gcr.io/casino-demo/axon-casino:latest
+          imagePullPolicy: Always
+          resources:
+            limits:
+              memory: 512Mi          
+          env:
+            - name: spring.profiles.active
+              value: game,axonhub
+            - name: axoniq.axonhub.servers
+              value: axonhub.default.svc.cluster.local
+            - name: spring.datasource.url
+              value: jdbc:mysql://localhost/axoncasino
+            - name: spring.datasource.username
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: spring.datasource.password
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+        - name: cloudsql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.11
+          command: ["/cloud_sql_proxy",
+                    "-instances=casino-demo:europe-west1:casino-demo=tcp:3306",
+                    "-credential_file=/secrets/cloudsql/credentials.json"]
+          volumeMounts:
+            - name: cloudsql-instance-credentials
+              mountPath: /secrets/cloudsql
+              readOnly: true
+      volumes:
+        - name: cloudsql-instance-credentials
+          secret:
+            secretName: cloudsql-instance-credentials
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ac-wallet
+  labels:
+    app: ac-wallet
+spec:
+  template:
+    metadata:
+      labels:
+        app: ac-wallet
+    spec:
+      containers:
+        - name: app
+          image: eu.gcr.io/casino-demo/axon-casino:latest
+          imagePullPolicy: Always
+          resources:
+            limits:
+              memory: 512Mi          
+          env:
+            - name: spring.profiles.active
+              value: wallet,axonhub
+            - name: axoniq.axonhub.servers
+              value: axonhub.default.svc.cluster.local
+            - name: spring.datasource.url
+              value: jdbc:mysql://localhost/axoncasino
+            - name: spring.datasource.username
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: spring.datasource.password
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+        - name: cloudsql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.11
+          command: ["/cloud_sql_proxy",
+                    "-instances=casino-demo:europe-west1:casino-demo=tcp:3306",
+                    "-credential_file=/secrets/cloudsql/credentials.json"]
+          volumeMounts:
+            - name: cloudsql-instance-credentials
+              mountPath: /secrets/cloudsql
+              readOnly: true
+      volumes:
+        - name: cloudsql-instance-credentials
+          secret:
+            secretName: cloudsql-instance-credentials
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ac-process
+  labels:
+    app: ac-process
+spec:
+  template:
+    metadata:
+      labels:
+        app: ac-process
+    spec:
+      containers:
+        - name: app
+          image: eu.gcr.io/casino-demo/axon-casino:latest
+          imagePullPolicy: Always
+          resources:
+            limits:
+              memory: 512Mi          
+          env:
+            - name: spring.profiles.active
+              value: process,axonhub
+            - name: axoniq.axonhub.servers
+              value: axonhub.default.svc.cluster.local
+            - name: spring.datasource.url
+              value: jdbc:mysql://localhost/axoncasino
+            - name: spring.datasource.username
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: username
+            - name: spring.datasource.password
+              valueFrom:
+                secretKeyRef:
+                  name: cloudsql-db-credentials
+                  key: password
+        - name: cloudsql-proxy
+          image: gcr.io/cloudsql-docker/gce-proxy:1.11
+          command: ["/cloud_sql_proxy",
+                    "-instances=casino-demo:europe-west1:casino-demo=tcp:3306",
+                    "-credential_file=/secrets/cloudsql/credentials.json"]
+          volumeMounts:
+            - name: cloudsql-instance-credentials
+              mountPath: /secrets/cloudsql
+              readOnly: true
+      volumes:
+        - name: cloudsql-instance-credentials
+          secret:
+            secretName: cloudsql-instance-credentials

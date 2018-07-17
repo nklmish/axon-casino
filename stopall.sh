@@ -1,1 +1,1 @@
-kubectl delete deployments/axon-casino deployments/wallet deployments/game deployments/query deployments/kyp deployments/process
+kubectl delete -f deployment.yaml

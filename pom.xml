@@ -5,7 +5,7 @@
 
     <groupId>io.axoniq.demo</groupId>
     <artifactId>axon-casino</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>2.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>axon-casino</name>
@@ -24,7 +24,7 @@
         <java.version>1.8</java.version>
         <kotlin.version>1.2.51</kotlin.version>
         <axon.version>3.3.1</axon.version>
-        <axonhub.version>1.1</axonhub.version>
+        <axonhub.version>1.1.1</axonhub.version>
         <vaadin.version>8.4.5</vaadin.version>
 		<vaadin.charts.version>4.0.5</vaadin.charts.version>
 		<vaadin.widgetset.mode>local</vaadin.widgetset.mode>
@@ -64,11 +64,11 @@
         </dependency>
         <!-- When the AxonHub dependency is commented out, we'll
             run as with local busses (monolith) -->
-        <!--<dependency>-->
-            <!--<groupId>io.axoniq</groupId>-->
-            <!--<artifactId>axonhub-spring-boot-autoconfigure</artifactId>-->
-            <!--<version>${axonhub.version}</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>io.axoniq</groupId>
+            <artifactId>axonhub-spring-boot-autoconfigure</artifactId>
+            <version>${axonhub.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.vaadin</groupId>
             <artifactId>vaadin-spring-boot-starter</artifactId>

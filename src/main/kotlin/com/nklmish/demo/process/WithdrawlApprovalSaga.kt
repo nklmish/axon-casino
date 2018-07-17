@@ -7,6 +7,7 @@ import com.nklmish.demo.wallet.ApproveWithdrawCommand
 import com.nklmish.demo.wallet.DenyWithdrawCommand
 import com.nklmish.demo.wallet.WithdrawalRequestedEvent
 import org.axonframework.commandhandling.gateway.CommandGateway
+import org.axonframework.eventhandling.EventHandler
 import org.axonframework.eventhandling.saga.EndSaga
 import org.axonframework.eventhandling.saga.SagaEventHandler
 import org.axonframework.eventhandling.saga.SagaLifecycle
@@ -19,10 +20,16 @@ import java.math.BigDecimal
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.*
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Component
 
 @Saga
 @Profile("process")
 class WithdrawalApprovalSaga {
+
+    companion object {
+        private val log = LoggerFactory.getLogger(WithdrawalApprovalSaga::class.java);
+    }
 
     @Autowired
     @Transient
@@ -39,16 +46,19 @@ class WithdrawalApprovalSaga {
     @StartSaga
     @SagaEventHandler(associationProperty = "withdrawalId")
     fun on(event: WithdrawalRequestedEvent) {
+        log.info("starting saga {}", event)
         amount = event.amount
         walletId = event.walletId
         withdrawalId = event.withdrawalId
         validationRequestId = UUID.randomUUID()
         SagaLifecycle.associateWith("validationRequestId", validationRequestId!!.toString())
+        log.info("scheduling validation delay expired event")
         eventScheduler!!.schedule(Duration.of(5L, ChronoUnit.SECONDS), ValidationDelayExpiredEvent(validationRequestId!!))
     }
 
     @SagaEventHandler(associationProperty = "validationRequestId")
     fun on(event: ValidationDelayExpiredEvent) {
+        log.info("handling {}", event)
         val cmd = PerformKypValidationCommand(validationRequestId!!, walletId!!, withdrawalId!!, amount!!)
         commandGateway!!.send<Any>(cmd)
     }
@@ -56,12 +66,14 @@ class WithdrawalApprovalSaga {
     @EndSaga
     @SagaEventHandler(associationProperty = "validationRequestId")
     fun on(event: KypValidationOkEvent) {
+        log.info("handling {}", event)
         commandGateway!!.send<Any>(ApproveWithdrawCommand(walletId!!, withdrawalId!!))
     }
 
     @EndSaga
     @SagaEventHandler(associationProperty = "validationRequestId")
     fun on(event: KypValidationNotOkEvent) {
+        log.info("handling {}", event)
         commandGateway!!.send<Any>(DenyWithdrawCommand(walletId!!, withdrawalId!!))
     }
 

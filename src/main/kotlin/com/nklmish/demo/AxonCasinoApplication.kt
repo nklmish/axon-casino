@@ -5,15 +5,17 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.nklmish.demo.process.WithdrawalApprovalSaga
 import com.thoughtworks.xstream.XStream
+import io.axoniq.axonhub.client.boot.EventStoreAutoConfiguration
+import io.axoniq.axonhub.client.boot.MessagingAutoConfiguration
+import io.axoniq.axonhub.client.boot.SubscriptionQueryAutoConfiguration
 import org.axonframework.common.transaction.TransactionManager
 import org.axonframework.config.EventProcessingConfiguration
 import org.axonframework.config.SagaConfiguration
 import org.axonframework.eventhandling.EventBus
 import org.axonframework.eventhandling.scheduling.EventScheduler
+import org.axonframework.eventhandling.scheduling.java.SimpleEventScheduler
 import org.axonframework.eventhandling.scheduling.quartz.EventJobDataBinder
 import org.axonframework.eventhandling.scheduling.quartz.QuartzEventScheduler
-import org.axonframework.eventhandling.scheduling.quartz.QuartzEventScheduler.DirectEventJobDataBinder
-import org.axonframework.serialization.SerializedObject
 import org.axonframework.serialization.Serializer
 import org.axonframework.serialization.SimpleSerializedObject
 import org.axonframework.serialization.SimpleSerializedType
@@ -22,16 +24,22 @@ import org.axonframework.serialization.xml.XStreamSerializer
 import org.quartz.JobDataMap
 import org.quartz.Scheduler
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.boot.autoconfigure.SpringBootApplication
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration
+import org.springframework.boot.autoconfigure.quartz.SchedulerFactoryBeanCustomizer
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.ComponentScan
+import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
 import org.springframework.scheduling.annotation.EnableScheduling
+import org.springframework.scheduling.quartz.SchedulerFactoryBean
 import org.springframework.stereotype.Component
+import java.util.concurrent.Executors
 
 
-@SpringBootApplication
+@Configuration
+@ComponentScan
 @EnableScheduling
 class AxonCasinoApplication {
 
@@ -85,6 +93,14 @@ class AxonCasinoApplication {
 }
 
 @Component
+class SchedulerNameCustomizer(@Value("\${spring.profiles.active}") private val activeProfiles: String) : SchedulerFactoryBeanCustomizer {
+    override fun customize(schedulerFactoryBean: SchedulerFactoryBean?) {
+        println(schedulerFactoryBean)
+        schedulerFactoryBean?.setSchedulerName(activeProfiles)
+    }
+}
+
+@Component
 class AxonSerializerEventJobDataBinder(private val serializer: Serializer) : EventJobDataBinder {
     override fun toJobData(eventMessage: Any): JobDataMap {
         val serializedEvent = serializer.serialize(eventMessage, String::class.java)
@@ -101,6 +117,16 @@ class AxonSerializerEventJobDataBinder(private val serializer: Serializer) : Eve
         return serializer.deserialize(serializedEvent)
     }
 }
+
+@Configuration
+@Profile("axonhub")
+@EnableAutoConfiguration
+class EnableHubAutoconfig
+
+@Configuration
+@Profile("!axonhub")
+@EnableAutoConfiguration(exclude = arrayOf(MessagingAutoConfiguration::class, EventStoreAutoConfiguration::class, SubscriptionQueryAutoConfiguration::class))
+class DisableHubAutoconfig
 
 fun main(args: Array<String>) {
     runApplication<AxonCasinoApplication>(*args)
