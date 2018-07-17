@@ -100,6 +100,7 @@ class TotalDepositedProjection(val entityManager: EntityManager, val objectMappe
 }
 
 @Component
+@Profile("query")
 class SampleJob : Job {
 
     @Autowired
@@ -112,6 +113,7 @@ class SampleJob : Job {
 }
 
 @Configuration
+@Profile("query")
 class QuartzConfig {
 
     @Bean
