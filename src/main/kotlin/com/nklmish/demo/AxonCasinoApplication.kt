@@ -1,31 +1,53 @@
 package com.nklmish.demo
 
+import com.fasterxml.jackson.databind.Module
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.nklmish.demo.process.WithdrawalApprovalSaga
+import com.nklmish.demo.walletsummary.TopWalletSummary
+import com.nklmish.demo.walletsummary.TopWalletSummaryQuery
+import com.thoughtworks.xstream.XStream
+import io.axoniq.axonhub.client.boot.EventStoreAutoConfiguration
+import io.axoniq.axonhub.client.boot.MessagingAutoConfiguration
+import io.axoniq.axonhub.client.boot.SubscriptionQueryAutoConfiguration
 import org.axonframework.common.transaction.TransactionManager
-import org.axonframework.config.EventHandlingConfiguration
+import org.axonframework.config.EventProcessingConfiguration
 import org.axonframework.config.SagaConfiguration
 import org.axonframework.eventhandling.EventBus
 import org.axonframework.eventhandling.scheduling.EventScheduler
-import org.axonframework.eventhandling.scheduling.java.SimpleEventScheduler
+import org.axonframework.eventhandling.scheduling.quartz.EventJobDataBinder
+import org.axonframework.eventhandling.scheduling.quartz.QuartzEventScheduler
+import org.axonframework.queryhandling.QueryGateway
+import org.axonframework.queryhandling.responsetypes.ResponseTypes
+import org.axonframework.serialization.Serializer
+import org.axonframework.serialization.SimpleSerializedObject
+import org.axonframework.serialization.SimpleSerializedType
 import org.axonframework.serialization.json.JacksonSerializer
+import org.axonframework.serialization.xml.XStreamSerializer
+import org.quartz.JobDataMap
+import org.quartz.Scheduler
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.autoconfigure.SpringBootApplication
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration
+import org.springframework.boot.autoconfigure.quartz.SchedulerFactoryBeanCustomizer
+import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.ComponentScan
+import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
-import org.springframework.scheduling.annotation.EnableScheduling
-import java.util.concurrent.Executors
+import org.springframework.context.event.EventListener
+import org.springframework.scheduling.quartz.SchedulerFactoryBean
+import org.springframework.stereotype.Component
 
 
-@SpringBootApplication
-@EnableScheduling
+@Configuration
+@ComponentScan
 class AxonCasinoApplication {
 
     @Autowired
-    fun config(eventHandlingConfiguration: EventHandlingConfiguration) {
-        eventHandlingConfiguration.usingTrackingProcessors()
+    fun config(eventProcessingConfiguration: EventProcessingConfiguration) {
+        eventProcessingConfiguration.usingTrackingProcessors()
     }
 
     @Bean
@@ -36,18 +58,76 @@ class AxonCasinoApplication {
 
     @Bean
     @Profile("process", "game")
-    fun eventScheduler(eventBus: EventBus, transactionManager: TransactionManager): EventScheduler {
-        return SimpleEventScheduler(Executors.newSingleThreadScheduledExecutor(), eventBus, transactionManager)
+    fun eventScheduler(eventBus: EventBus, transactionManager: TransactionManager, scheduler: Scheduler, eventJobDataBinder: EventJobDataBinder): EventScheduler {
+        val quartzEventScheduler = QuartzEventScheduler()
+        quartzEventScheduler.setEventBus(eventBus)
+        quartzEventScheduler.setTransactionManager(transactionManager)
+        quartzEventScheduler.setScheduler(scheduler)
+        quartzEventScheduler.setEventJobDataBinder(eventJobDataBinder)
+        return quartzEventScheduler
     }
 
     @Bean
-    fun eventSerializer(): JacksonSerializer {
-        val objectMapper = ObjectMapper()
-        objectMapper.registerModule(KotlinModule())
+    fun eventSerializer(objectMapper: ObjectMapper): JacksonSerializer {
         return JacksonSerializer(objectMapper)
     }
 
+    @Bean
+    fun kotlinModule(): Module {
+        return KotlinModule()
+    }
+
+    @Autowired
+    fun configure(serializer: Serializer) {
+        if (serializer is XStreamSerializer) {
+            val xStream = serializer.xStream
+            XStream.setupDefaultSecurity(xStream)
+            xStream.allowTypesByWildcard(arrayOf("org.axonframework.**", "com.nklmish.demo.**"))
+        }
+    }
+
+    /* Letting Hub know we're here - helps to make GUI components immediately visible. */
+    @EventListener(ApplicationReadyEvent::class)
+	fun helloHub(event: ApplicationReadyEvent) {
+		val queryGateway = event.applicationContext.getBean(QueryGateway::class.java)
+		queryGateway.query(TopWalletSummaryQuery(), ResponseTypes.multipleInstancesOf(TopWalletSummary::class.java))
+	}
 }
+
+@Component
+class SchedulerNameCustomizer(@Value("\${spring.profiles.active}") private val activeProfiles: String) : SchedulerFactoryBeanCustomizer {
+    override fun customize(schedulerFactoryBean: SchedulerFactoryBean?) {
+        schedulerFactoryBean?.setSchedulerName(activeProfiles)
+    }
+}
+
+@Component
+class AxonSerializerEventJobDataBinder(private val serializer: Serializer) : EventJobDataBinder {
+    override fun toJobData(eventMessage: Any): JobDataMap {
+        val serializedEvent = serializer.serialize(eventMessage, String::class.java)
+        val jobData = JobDataMap()
+        jobData["data"] = serializedEvent.data
+        jobData["type.name"] = serializedEvent.type.name
+        jobData["type.revision"] = serializedEvent.type.revision
+        return jobData
+    }
+
+    override fun fromJobData(jobData: JobDataMap): Any {
+        val type = SimpleSerializedType(jobData["type.name"] as String?, jobData["type.revision"] as String?)
+        val serializedEvent = SimpleSerializedObject(jobData["data"] as String?, String::class.java, type)
+        return serializer.deserialize(serializedEvent)
+    }
+}
+
+@Configuration
+@Profile("axonhub")
+@EnableAutoConfiguration
+class EnableHubAutoconfig
+
+@Configuration
+@Profile("!axonhub")
+@EnableAutoConfiguration(exclude = arrayOf(MessagingAutoConfiguration::class, EventStoreAutoConfiguration::class, SubscriptionQueryAutoConfiguration::class))
+class DisableHubAutoconfig
 
 fun main(args: Array<String>) {
     runApplication<AxonCasinoApplication>(*args)

@@ -9,5 +9,5 @@ You need to get the trial license of vaadin charts using https://vaadin.com/pro/
 `mvn spring-boot:run`
 `localhost:8080`
 
-
-
+With the default configuration, it will use an embedded H2 database for all storage. Through profiles, MySQL and/or
+AxonHub+DB can be used for a fully scalable configuration.

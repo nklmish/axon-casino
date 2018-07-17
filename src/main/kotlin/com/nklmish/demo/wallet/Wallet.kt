@@ -37,6 +37,9 @@ class Wallet {
         if (cmd.amount <= BigDecimal.ZERO) {
             throw IllegalArgumentException("amount <= 0")
         }
+        if (cmd.amount >= BigDecimal("10000000")) {
+            throw IllegalArgumentException("amount too large")
+        }
         apply(DepositedEvent(cmd.walletId, cmd.amount, currency))
     }
 

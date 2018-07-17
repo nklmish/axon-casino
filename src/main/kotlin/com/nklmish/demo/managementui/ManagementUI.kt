@@ -1,9 +1,9 @@
 package com.nklmish.demo.managementui
 
 import com.nklmish.demo.managementdata.TotalDeposited
-import com.nklmish.demo.walletsummary.WalletSummary
-import com.nklmish.demo.walletsummary.WalletSummaryCreatedEvt
-import com.nklmish.demo.walletsummary.WalletSummaryUpdatedEvt
+import com.nklmish.demo.managementdata.TotalDepositedQuery
+import com.nklmish.demo.managementdata.TotalDepositedSample
+import com.nklmish.demo.walletsummary.*
 import com.vaadin.addon.charts.Chart
 import com.vaadin.addon.charts.model.*
 import com.vaadin.addon.charts.model.style.SolidColor
@@ -16,22 +16,29 @@ import com.vaadin.spring.annotation.SpringUI
 import com.vaadin.ui.HorizontalSplitPanel
 import com.vaadin.ui.UI
 import com.vaadin.ui.VerticalLayout
+import org.axonframework.queryhandling.DefaultQueryGateway
+import org.axonframework.queryhandling.QueryGateway
+import org.axonframework.queryhandling.SubscriptionQueryResult
+import org.axonframework.queryhandling.responsetypes.ResponseTypes
 import org.springframework.context.annotation.Profile
 import java.math.BigDecimal
 import java.util.*
+import javax.xml.crypto.Data
 
 @SpringUI(path = "/management")
 @Widgetset("AppWidgetset")
 @Theme("mytheme")
 @Push
 @Profile("gui")
-class ManagementUI(private val managementDataCollector: ManagementDataCollector) : UI(), ManagementEventListener {
+class ManagementUI(private val queryGateway: QueryGateway) : UI() {
     private val allSeries: MutableMap<String, DataSeries>
     private val availableSeries = ListSeries("Available")
     private val bettedSeries = ListSeries("Betted")
     private val withdrawingSeries = ListSeries("Withdrawing")
-    private var allWalletsChart: Chart? = null
-    private val USD_TO_EUR = BigDecimal("0.85")
+    private var topWalletsChart: Chart? = null
+    private var totalDepositedCharts: List<Chart>? = null
+    private var topQueryResult: SubscriptionQueryResult<List<TopWalletSummary>, TopWalletsChange>? = null
+    private var totalQueryResult: SubscriptionQueryResult<List<TotalDepositedSample>, TotalDepositedSample>? = null
 
     init {
         allSeries = HashMap()
@@ -44,16 +51,16 @@ class ManagementUI(private val managementDataCollector: ManagementDataCollector)
             series.name = "$currency deposits"
             allSeries[currency] = series
         }
-        managementDataCollector.register(this)
 
         val totalsColumn = VerticalLayout()
         totalsColumn.setSizeFull()
-        for (chart in totalDepositedCharts()) totalsColumn.addComponent(chart)
+        this.totalDepositedCharts = totalDepositedCharts()
+        for (chart in this.totalDepositedCharts!!) totalsColumn.addComponent(chart)
 
         val walletsColumn = VerticalLayout()
         walletsColumn.setSizeFull()
-        this.allWalletsChart = allWalletsChart()
-        walletsColumn.addComponent(allWalletsChart)
+        this.topWalletsChart = topWalletsChart()
+        walletsColumn.addComponent(topWalletsChart)
 
         val splitPanel = HorizontalSplitPanel()
         splitPanel.setSplitPosition(50f, Sizeable.Unit.PERCENTAGE)
@@ -61,80 +68,87 @@ class ManagementUI(private val managementDataCollector: ManagementDataCollector)
         splitPanel.secondComponent = walletsColumn
 
         content = splitPanel
+
+        initTotalData()
+        initTopWalletData()
     }
 
     override fun close() {
-        managementDataCollector.unregister(this)
+        topQueryResult?.cancel()
+        totalQueryResult?.cancel()
         super.close()
     }
 
-    override fun updateTotals(now: Long, totals: List<TotalDeposited>) {
+    private fun initTotalData() {
+        val queryResult = queryGateway.subscriptionQuery(TotalDepositedQuery(),
+                ResponseTypes.multipleInstancesOf(TotalDepositedSample::class.java),
+                ResponseTypes.instanceOf(TotalDepositedSample::class.java))
+        totalQueryResult = queryResult
+        queryResult.initialResult().subscribe(::processInitialTotalData)
+        queryResult.updates().subscribe(::processUpdateTotalData)
+    }
+
+    private fun processInitialTotalData(samples: List<TotalDepositedSample>) {
         access {
-            for ((currency, amount) in totals) {
-                val series = allSeries[currency]
-                val shift = series!!.size() > 20
-                series.add(DataSeriesItem(now, amount), true, shift)
+            for(sample in samples) {
+                allSeries["EUR"]!!.add(DataSeriesItem(sample.timestamp, sample.totalEUR), false, false)
+                allSeries["USD"]!!.add(DataSeriesItem(sample.timestamp, sample.totalUSD), false, false)
+            }
+            for (chart in this.totalDepositedCharts!!) {
+                chart.drawChart()
             }
         }
     }
 
-    private fun initWallets(wallets: List<WalletSummary>) {
-        val categories = arrayOfNulls<String>(wallets.size)
-        val available = arrayOfNulls<Number>(wallets.size)
-        val betted = arrayOfNulls<Number>(wallets.size)
-        val withdrawing = arrayOfNulls<Number>(wallets.size)
-        for (i in wallets.indices) {
-            val (walletId, currency, available1, betted1, withdrawing1) = wallets[i]
-            categories[i] = walletId
-            var multiplier: BigDecimal? = null
-            when (currency) {
-                "EUR" -> multiplier = BigDecimal.ONE
-                "USD" -> multiplier = USD_TO_EUR
+    private fun processUpdateTotalData(sample: TotalDepositedSample) {
+        access {
+            allSeries["EUR"]!!.add(DataSeriesItem(sample.timestamp, sample.totalEUR), true, true)
+            allSeries["USD"]!!.add(DataSeriesItem(sample.timestamp, sample.totalUSD), true, true)
+        }
+    }
+
+    private fun initTopWalletData() {
+        val queryResult = queryGateway.subscriptionQuery(TopWalletSummaryQuery(),
+                ResponseTypes.multipleInstancesOf(TopWalletSummary::class.java),
+                ResponseTypes.instanceOf(TopWalletsChange::class.java))
+        topQueryResult = queryResult
+        queryResult.initialResult().subscribe(::processNewTopMembers)
+        queryResult.updates().subscribe { change ->
+            when(change) {
+                is TopWalletsMemberChange -> processNewTopMembers(change.summaries)
+                is TopWalletsValueChange -> processTopDataChange(change.position, change.summary)
             }
-            available[i] = available1!!.multiply(multiplier!!)
-            betted[i] = betted1!!.multiply(multiplier)
-            withdrawing[i] = withdrawing1!!.multiply(multiplier)
+        }
+    }
+
+    private fun processNewTopMembers(top: List<TopWalletSummary>) {
+        val categories = arrayOfNulls<String>(top.size)
+        val available = arrayOfNulls<Number>(top.size)
+        val betted = arrayOfNulls<Number>(top.size)
+        val withdrawing = arrayOfNulls<Number>(top.size)
+        for (i in top.indices) {
+            categories[i] = top[i].walletId
+            available[i] = top[i].available
+            betted[i] = top[i].betted
+            withdrawing[i] = top[i].withdrawing
         }
         access {
-            val configuration = allWalletsChart!!.configuration
+            val configuration = topWalletsChart!!.configuration
             configuration.getxAxis().setCategories(*categories)
             availableSeries.setData(*available)
             bettedSeries.setData(*betted)
             withdrawingSeries.setData(*withdrawing)
-            allWalletsChart!!.drawChart(configuration)
+            topWalletsChart!!.drawChart(configuration)
         }
     }
 
-    override fun on(evt: WalletSummaryCreatedEvt) {
-        val configuration = allWalletsChart!!.configuration
-        val (walletId, currency, available, betted, withdrawing) = evt.walletSummary
-        configuration.getxAxis().addCategory(walletId)
-        var multiplier: BigDecimal? = null
-        when (currency) {
-            "EUR" -> multiplier = BigDecimal.ONE
-            "USD" -> multiplier = USD_TO_EUR
+    private fun processTopDataChange(pos: Int, data: TopWalletSummary) {
+        access {
+            availableSeries.updatePoint(pos, data.available)
+            bettedSeries.updatePoint(pos, data.betted)
+            withdrawingSeries.updatePoint(pos, data.withdrawing)
         }
-        availableSeries.addData(available!!.multiply(multiplier!!))
-        bettedSeries.addData(betted!!.multiply(multiplier))
-        withdrawingSeries.addData(withdrawing!!.multiply(multiplier))
-        allWalletsChart!!.drawChart()
-    }
 
-    override fun on(evt: WalletSummaryUpdatedEvt) {
-        val configuration = allWalletsChart!!.configuration
-        val (walletId, currency, available, betted, withdrawing) = evt.walletSummary
-        for (i in 0 until configuration.getxAxis().categories.size) {
-            if (configuration.getxAxis().categories[i] == walletId) {
-                var multiplier: BigDecimal? = null
-                when (currency) {
-                    "EUR" -> multiplier = BigDecimal.ONE
-                    "USD" -> multiplier = USD_TO_EUR
-                }
-                availableSeries.updatePoint(i, available!!.multiply(multiplier!!))
-                bettedSeries.updatePoint(i, betted!!.multiply(multiplier))
-                withdrawingSeries.updatePoint(i, withdrawing!!.multiply(multiplier))
-            }
-        }
     }
 
     private fun totalDepositedCharts(): List<Chart> {
@@ -161,17 +175,16 @@ class ManagementUI(private val managementDataCollector: ManagementDataCollector)
 
             charts.add(chart)
         }
-        initWallets(managementDataCollector.findWallets())
         return charts
     }
 
-    private fun allWalletsChart(): Chart {
+    private fun topWalletsChart(): Chart {
         val chart = Chart(ChartType.BAR)
         chart.setSizeFull()
 
         val conf = chart.configuration
 
-        conf.setTitle("Wallets")
+        conf.setTitle("Top 5 Wallets")
 
         val x = XAxis()
         x.setCategories()

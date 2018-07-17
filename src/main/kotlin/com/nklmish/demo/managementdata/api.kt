@@ -1,14 +1,9 @@
 package com.nklmish.demo.managementdata
 
 import java.math.BigDecimal
-import javax.persistence.Entity
-import javax.persistence.Id
+import java.time.Instant
 
 class TotalDepositedQuery
 
-@Entity
-data class TotalDeposited(
-        @Id var currency: String? = null,
-        var amount: BigDecimal? = null
-)
+data class TotalDepositedSample(val timestamp: Instant, val totalEUR: BigDecimal, val totalUSD: BigDecimal)
 
