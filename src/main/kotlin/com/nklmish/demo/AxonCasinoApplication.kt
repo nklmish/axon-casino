@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.Module
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import com.nklmish.demo.process.WithdrawalApprovalSaga
+import com.nklmish.demo.walletsummary.TopWalletSummary
+import com.nklmish.demo.walletsummary.TopWalletSummaryQuery
 import com.thoughtworks.xstream.XStream
 import io.axoniq.axonhub.client.boot.EventStoreAutoConfiguration
 import io.axoniq.axonhub.client.boot.MessagingAutoConfiguration
@@ -16,6 +18,8 @@ import org.axonframework.eventhandling.scheduling.EventScheduler
 import org.axonframework.eventhandling.scheduling.java.SimpleEventScheduler
 import org.axonframework.eventhandling.scheduling.quartz.EventJobDataBinder
 import org.axonframework.eventhandling.scheduling.quartz.QuartzEventScheduler
+import org.axonframework.queryhandling.QueryGateway
+import org.axonframework.queryhandling.responsetypes.ResponseTypes
 import org.axonframework.serialization.Serializer
 import org.axonframework.serialization.SimpleSerializedObject
 import org.axonframework.serialization.SimpleSerializedType
@@ -26,12 +30,15 @@ import org.quartz.Scheduler
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
+import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.autoconfigure.quartz.SchedulerFactoryBeanCustomizer
+import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.boot.runApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
+import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.quartz.SchedulerFactoryBean
 import org.springframework.stereotype.Component
@@ -53,12 +60,6 @@ class AxonCasinoApplication {
     fun withdrawalApprovalSagaConfiguration(): SagaConfiguration<WithdrawalApprovalSaga> {
         return SagaConfiguration.trackingSagaManager(WithdrawalApprovalSaga::class.java)
     }
-
-//    @Bean
-//    @Profile("process", "game")
-//    fun eventScheduler(eventBus: EventBus, transactionManager: TransactionManager): EventScheduler {
-//        return SimpleEventScheduler(Executors.newSingleThreadScheduledExecutor(), eventBus, transactionManager)
-//    }
 
     @Bean
     @Profile("process", "game")
@@ -90,12 +91,17 @@ class AxonCasinoApplication {
         }
     }
 
+    /* Letting Hub know we're here - helps to make GUI components immediately visible. */
+    @EventListener(ApplicationReadyEvent::class)
+	fun helloHub(event: ApplicationReadyEvent) {
+		val queryGateway = event.applicationContext.getBean(QueryGateway::class.java)
+		queryGateway.query(TopWalletSummaryQuery(), ResponseTypes.multipleInstancesOf(TopWalletSummary::class.java))
+	}
 }
 
 @Component
 class SchedulerNameCustomizer(@Value("\${spring.profiles.active}") private val activeProfiles: String) : SchedulerFactoryBeanCustomizer {
     override fun customize(schedulerFactoryBean: SchedulerFactoryBean?) {
-        println(schedulerFactoryBean)
         schedulerFactoryBean?.setSchedulerName(activeProfiles)
     }
 }

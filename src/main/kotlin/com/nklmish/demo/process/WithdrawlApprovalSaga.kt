@@ -6,6 +6,7 @@ import com.nklmish.demo.kyp.PerformKypValidationCommand
 import com.nklmish.demo.wallet.ApproveWithdrawCommand
 import com.nklmish.demo.wallet.DenyWithdrawCommand
 import com.nklmish.demo.wallet.WithdrawalRequestedEvent
+import org.axonframework.commandhandling.CommandHandler
 import org.axonframework.commandhandling.gateway.CommandGateway
 import org.axonframework.eventhandling.EventHandler
 import org.axonframework.eventhandling.saga.EndSaga
@@ -78,3 +79,11 @@ class WithdrawalApprovalSaga {
     }
 
 }
+
+class Dummy {
+    @CommandHandler
+    private fun on(cmd: DummyWithdrawalCommand) {
+    }
+}
+
+class DummyWithdrawalCommand
